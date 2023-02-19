@@ -10253,6 +10253,8 @@ func (future *ProfilesUpdateFuture) UnmarshalJSON(body []byte) error {
 	return nil
 }
 
+type ResourceIdentityType string
+
 // CdnFrontdoorIdentity identity for the virtual machine.
 type CdnFrontdoorIdentity struct {
 	// PrincipalID - READ-ONLY; The principal id of virtual machine identity. This property will only be provided for a system assigned identity.

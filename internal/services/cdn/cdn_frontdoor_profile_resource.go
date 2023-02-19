@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
-	"github.com/hashicorp/terraform-provider-azurerm/vendor/github.com/tombuildsstuff/kermit/sdk/network/2022-07-01/network"
 )
 
 func expandFrontdoorCdnIdentity(input []interface{}) (*cdn.CdnFrontdoorIdentity, error) {
@@ -27,7 +26,7 @@ func expandFrontdoorCdnIdentity(input []interface{}) (*cdn.CdnFrontdoorIdentity,
 	}
 
 	out := cdn.CdnFrontdoorIdentity{
-		Type: network.ResourceIdentityType(string(expanded.Type)),
+		Type: cdn.ResourceIdentityType(string(expanded.Type)),
 	}
 	if expanded.Type == identity.TypeUserAssigned || expanded.Type == identity.TypeSystemAssignedUserAssigned {
 		out.UserAssignedIdentities = make(map[string]*cdn.UserAssignedIdentitiesValue)
@@ -38,6 +37,31 @@ func expandFrontdoorCdnIdentity(input []interface{}) (*cdn.CdnFrontdoorIdentity,
 		}
 	}
 	return &out, nil
+}
+
+func flattenCdnFrontdoorIdentity(input *cdn.CdnFrontdoorIdentity) (*[]interface{}, error) {
+	var transform *identity.SystemAndUserAssignedMap
+
+	if input != nil {
+		transform = &identity.SystemAndUserAssignedMap{
+			Type:        identity.Type(string(input.Type)),
+			IdentityIds: make(map[string]identity.UserAssignedIdentityDetails),
+		}
+
+		if input.PrincipalID != nil {
+			transform.PrincipalId = *input.PrincipalID
+		}
+		if input.TenantID != nil {
+			transform.TenantId = *input.TenantID
+		}
+		for k, v := range input.UserAssignedIdentities {
+			transform.IdentityIds[k] = identity.UserAssignedIdentityDetails{
+				ClientId:    v.ClientID,
+				PrincipalId: v.PrincipalID,
+			}
+		}
+	}
+	return identity.FlattenSystemAndUserAssignedMap(transform)
 }
 func resourceCdnFrontDoorProfile() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
@@ -180,7 +204,13 @@ func resourceCdnFrontDoorProfileRead(d *pluginsdk.ResourceData, meta interface{}
 		skuName = string(resp.Sku.Name)
 	}
 	d.Set("sku_name", skuName)
-
+	identity, err := flattenCdnFrontdoorIdentity(resp.Identity)
+	if err != nil {
+		return fmt.Errorf("flattening `identity`: %+v", err)
+	}
+	if err := d.Set("identity", identity); err != nil {
+		return fmt.Errorf("setting `identity`: %+v", err)
+	}
 	return tags.FlattenAndSet(d, resp.Tags)
 }
 
