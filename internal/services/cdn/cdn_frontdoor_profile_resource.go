@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/cdn/mgmt/2021-06-01/cdn" // nolint: staticcheck
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
+	"github.com/hashicorp/go-azure-helpers/resourcemanager/identity"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/location"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -16,8 +17,28 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/hashicorp/terraform-provider-azurerm/vendor/github.com/tombuildsstuff/kermit/sdk/network/2022-07-01/network"
 )
 
+func expandFrontdoorCdnIdentity(input []interface{}) (*cdn.CdnFrontdoorIdentity, error) {
+	expanded, err := identity.ExpandSystemAndUserAssignedMap(input)
+	if err != nil {
+		return nil, err
+	}
+
+	out := cdn.CdnFrontdoorIdentity{
+		Type: network.ResourceIdentityType(string(expanded.Type)),
+	}
+	if expanded.Type == identity.TypeUserAssigned || expanded.Type == identity.TypeSystemAssignedUserAssigned {
+		out.UserAssignedIdentities = make(map[string]*cdn.UserAssignedIdentitiesValue)
+		for k := range expanded.IdentityIds {
+			out.UserAssignedIdentities[k] = &cdn.UserAssignedIdentitiesValue{
+				// intentionally empty
+			}
+		}
+	}
+	return &out, nil
+}
 func resourceCdnFrontDoorProfile() *pluginsdk.Resource {
 	return &pluginsdk.Resource{
 		Create: resourceCdnFrontDoorProfileCreate,
@@ -54,6 +75,8 @@ func resourceCdnFrontDoorProfile() *pluginsdk.Resource {
 				ValidateFunc: validation.IntBetween(16, 240),
 			},
 
+			"identity": commonschema.SystemAssignedUserAssignedIdentityOptional(),
+
 			"sku_name": {
 				Type:     pluginsdk.TypeString,
 				Required: true,
@@ -77,6 +100,11 @@ func resourceCdnFrontDoorProfile() *pluginsdk.Resource {
 func resourceCdnFrontDoorProfileCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).Cdn.FrontDoorProfileClient
 	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
+	identityRaw := d.Get("identity").([]interface{})
+	identity, err := expandFrontdoorCdnIdentity(identityRaw)
+	if err != nil {
+		return fmt.Errorf("expanding `identity`: %+v", err)
+	}
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
@@ -100,7 +128,8 @@ func resourceCdnFrontDoorProfileCreate(d *pluginsdk.ResourceData, meta interface
 		Sku: &cdn.Sku{
 			Name: cdn.SkuName(d.Get("sku_name").(string)),
 		},
-		Tags: tags.Expand(d.Get("tags").(map[string]interface{})),
+		Identity: identity,
+		Tags:     tags.Expand(d.Get("tags").(map[string]interface{})),
 	}
 
 	future, err := client.Create(ctx, id.ResourceGroup, id.ProfileName, props)

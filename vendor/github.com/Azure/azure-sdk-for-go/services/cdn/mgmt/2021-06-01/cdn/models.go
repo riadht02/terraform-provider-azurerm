@@ -9,12 +9,13 @@ package cdn
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/Azure/go-autorest/tracing"
-	"net/http"
 )
 
 // The package's fully qualified name.
@@ -9828,6 +9829,8 @@ type Profile struct {
 	*ProfileProperties `json:"properties,omitempty"`
 	// Location - Resource location.
 	Location *string `json:"location,omitempty"`
+	// Identity - The identity of the virtual machine, if configured.
+	Identity *CdnFrontdoorIdentity `json:"identity,omitempty"`
 	// Tags - Resource tags.
 	Tags map[string]*string `json:"tags"`
 	// ID - READ-ONLY; Resource ID.
@@ -10248,6 +10251,37 @@ func (future *ProfilesUpdateFuture) UnmarshalJSON(body []byte) error {
 	future.FutureAPI = &azFuture
 	future.Result = future.result
 	return nil
+}
+
+// CdnFrontdoorIdentity identity for the virtual machine.
+type CdnFrontdoorIdentity struct {
+	// PrincipalID - READ-ONLY; The principal id of virtual machine identity. This property will only be provided for a system assigned identity.
+	PrincipalID *string `json:"principalId,omitempty"`
+	// TenantID - READ-ONLY; The tenant id associated with the virtual machine. This property will only be provided for a system assigned identity.
+	TenantID *string `json:"tenantId,omitempty"`
+	// Type - The type of identity used for the virtual machine. The type 'SystemAssigned, UserAssigned' includes both an implicitly created identity and a set of user assigned identities. The type 'None' will remove any identities from the virtual machine. Possible values include: 'ResourceIdentityTypeSystemAssigned', 'ResourceIdentityTypeUserAssigned', 'ResourceIdentityTypeSystemAssignedUserAssigned', 'ResourceIdentityTypeNone'
+	Type ResourceIdentityType `json:"type,omitempty"`
+	// UserAssignedIdentities - The list of user identities associated with the Virtual Machine. The user identity dictionary key references will be ARM resource ids in the form: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}'.
+	UserAssignedIdentities map[string]*UserAssignedIdentitiesValue `json:"userAssignedIdentities"`
+}
+
+// MarshalJSON is the custom marshaler for VirtualMachineIdentity.
+func (vmi CdnFrontdoorIdentity) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]interface{})
+	if vmi.Type != "" {
+		objectMap["type"] = vmi.Type
+	}
+	if vmi.UserAssignedIdentities != nil {
+		objectMap["userAssignedIdentities"] = vmi.UserAssignedIdentities
+	}
+	return json.Marshal(objectMap)
+}
+
+type UserAssignedIdentitiesValue struct {
+	// PrincipalID - READ-ONLY; The principal id of user assigned identity.
+	PrincipalID *string `json:"principalId,omitempty"`
+	// ClientID - READ-ONLY; The client id of user assigned identity.
+	ClientID *string `json:"clientId,omitempty"`
 }
 
 // result is the default implementation for ProfilesUpdateFuture.Result.
