@@ -998,7 +998,7 @@ func PossibleDeleteOptionsValues() []DeleteOptions {
 }
 
 // DeploymentStatus enumerates the values for deployment status.
-type DeploymentStatus string // ResourceIdentityType enumerates the values for resource identity type.
+type DeploymentStatus string
 
 const (
 	// DeploymentStatusDeployed ...
